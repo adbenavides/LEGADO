@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>El Legado Bike — Cotizador de Transporte</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#0f1117;color:#f0f0f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;}
+    .header{background:linear-gradient(135deg,#1a1f2e,#0f1117);border-bottom:1px solid #2a2f3e;padding:16px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;}
+    .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#f5a623,#e8820a);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+    .container{max-width:500px;margin:0 auto;padding:20px 16px 80px;}
+    .progress{display:flex;gap:6px;margin-bottom:24px;}
+    .progress-bar{flex:1;height:4px;border-radius:2px;background:#2a2f3e;transition:background .3s;}
+    .progress-bar.active{background:#f5a623;}
+    .card{background:#1a1f2e;border-radius:16px;padding:20px;border:1px solid #2a2f3e;margin-bottom:16px;}
+    .step-title{font-size:20px;font-weight:700;margin-bottom:4px;}
+    .step-sub{font-size:13px;color:#888;margin-bottom:20px;}
+    .field-label{font-size:11px;color:#888;display:block;margin-bottom:6px;font-weight:600;letter-spacing:.5px;}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+    .chip{padding:10px 12px;border-radius:10px;border:1.5px solid #2a2f3e;background:#1a1f2e;color:#ccc;font-size:12px;font-weight:500;cursor:pointer;text-align:left;transition:all .2s;width:100%;}
+    .chip.selected{border-color:#f5a623;background:#1e1a0e;color:#f5a623;}
+    input[type=text],input[type=number],input[type=date]{width:100%;padding:12px 14px;border-radius:10px;border:1.5px solid #2a2f3e;background:#0f1117;color:#f0f0f0;font-size:14px;outline:none;transition:border-color .2s;margin-bottom:12px;}
+    input:focus{border-color:#f5a623;}
+    input::placeholder{color:#555;}
+    input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);}
+    .search-wrapper{position:relative;margin-bottom:12px;}
+    .search-wrapper input{margin-bottom:0;}
+    .suggestions{position:absolute;top:100%;left:0;right:0;background:#1a1f2e;border:1.5px solid #f5a623;border-radius:10px;z-index:999;margin-top:4px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.5);}
+    .suggestion-item{padding:12px 14px;cursor:pointer;border-bottom:1px solid #2a2f3e;font-size:13px;}
+    .suggestion-item:last-child{border-bottom:none;}
+    .suggestion-item:hover,.suggestion-item:active{background:#2a2f3e;}
+    .suggestion-main{font-weight:600;color:#f0f0f0;}
+    .suggestion-secondary{font-size:11px;color:#888;margin-top:2px;}
+    .place-selected{padding:12px 14px;border-radius:10px;border:1.5px solid #f5a623;background:#1e1a0e;margin-bottom:12px;display:flex;align-items:center;gap:10px;}
+    .place-selected-text{flex:1;font-size:13px;color:#f5a623;font-weight:500;}
+    .place-selected-change{font-size:11px;color:#888;flex-shrink:0;cursor:pointer;}
+    .distance-card{padding:14px;border-radius:12px;background:#1e1a0e;border:1.5px solid #f5a62340;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
+    .dist-km{font-size:26px;font-weight:800;color:#f5a623;}
+    .dist-label{font-size:12px;color:#888;margin-bottom:4px;}
+    .dist-time{font-size:11px;color:#888;margin-top:2px;}
+    .tarifa-label{font-size:11px;color:#888;text-align:right;}
+    .tarifa-val{font-size:18px;font-weight:700;color:#f0f0f0;text-align:right;}
+    .toggle-row{display:flex;justify-content:space-between;align-items:center;}
+    .toggle{width:44px;height:24px;border-radius:12px;border:none;cursor:pointer;background:#2a2f3e;position:relative;transition:background .2s;flex-shrink:0;}
+    .toggle.on{background:#f5a623;}
+    .toggle-knob{width:18px;height:18px;border-radius:9px;background:#fff;position:absolute;top:3px;left:3px;transition:left .2s;}
+    .toggle.on .toggle-knob{left:23px;}
+    .regreso-opts{display:flex;gap:8px;margin-top:12px;}
+    .regreso-btn{flex:1;padding:8px;border-radius:8px;border:1.5px solid #2a2f3e;background:#0f1117;color:#aaa;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;}
+    .regreso-btn.selected{border-color:#f5a623;background:#1e1a0e;color:#f5a623;}
+    .btn-primary{width:100%;padding:14px;border-radius:12px;background:#f5a623;color:#0f1117;font-weight:700;font-size:15px;border:none;cursor:pointer;}
+    .btn-primary:disabled{background:#2a2f3e;color:#555;cursor:not-allowed;}
+    .btn-secondary{padding:14px 20px;border-radius:12px;background:#1a1f2e;color:#aaa;font-weight:600;font-size:14px;border:1.5px solid #2a2f3e;cursor:pointer;}
+    .btn-row{display:flex;gap:10px;}
+    .result-total{text-align:center;margin-bottom:24px;}
+    .result-label{font-size:13px;color:#888;margin-bottom:4px;}
+    .result-amount{font-size:44px;font-weight:800;color:#f5a623;letter-spacing:-1px;}
+    .result-type{font-size:12px;color:#666;margin-top:4px;}
+    .summary-row{display:flex;justify-content:space-between;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid #2a2f3e;}
+    .summary-key{font-size:12px;color:#888;flex-shrink:0;}
+    .summary-val{font-size:13px;font-weight:500;text-align:right;max-width:65%;}
+    .price-row{display:flex;justify-content:space-between;margin-bottom:6px;}
+    .price-key{font-size:12px;color:#888;}
+    .price-val{font-size:13px;}
+    .price-total-row{display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid #2a2f3e;margin-top:4px;}
+    .price-total-key{font-size:14px;font-weight:700;}
+    .price-total-val{font-size:16px;font-weight:800;color:#f5a623;}
+    .maps-btn{width:100%;padding:14px;border-radius:12px;background:#1a3a1a;border:1.5px solid #4caf5060;color:#4caf50;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-top:10px;}
+    .hist-section{margin-top:32px;}
+    .hist-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+    .hist-title{font-size:13px;font-weight:700;color:#888;letter-spacing:.5px;}
+    .hist-total{font-size:14px;font-weight:700;color:#f5a623;}
+    .hist-item{background:#1a1f2e;border-radius:12px;padding:14px;margin-bottom:8px;border:1px solid #2a2f3e;}
+    .hist-cliente{font-size:14px;font-weight:600;}
+    .hist-detail{font-size:11px;color:#666;margin-top:3px;}
+    .hist-valor{font-size:15px;font-weight:700;color:#f5a623;}
+    .conductor-badge{display:inline-block;background:#f5a62320;color:#f5a623;border:1px solid #f5a62340;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600;margin-top:4px;}
+    .loading{display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:10px;background:#1a1f2e;border:1px solid #2a2f3e;margin-bottom:16px;}
+    .spinner{width:16px;height:16px;border:2px solid #f5a623;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .step{display:none;}
+    .step.active{display:block;}
+    .pac-container{display:none!important;}
+    select{width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid #2a2f3e;background:#1a1f2e;color:#f0f0f0;font-size:13px;outline:none;margin-bottom:12px;}
+    .export-btn{flex:1;padding:12px;border-radius:10px;font-size:13px;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+    .btn-excel{background:#1a3a1a;color:#4caf50;border:1.5px solid #4caf5040;}
+    .btn-pdf{background:#1a1a3a;color:#7b8cde;border:1.5px solid #7b8cde40;}
+    .resumen-card{padding:14px;background:#1e1a0e;border-radius:12px;border:1px solid #f5a62340;margin-bottom:12px;}
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:500;align-items:center;justify-content:center;padding:20px;}
+    .modal-overlay.open{display:flex;}
+    .modal-box{background:#1a1f2e;border-radius:16px;padding:24px;width:100%;max-width:460px;border:1px solid #2a2f3e;}
+  </style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">🚲</div>
+  <div>
+    <div style="font-weight:700;font-size:17px;">El Legado Bike</div>
+    <div style="font-size:11px;color:#888;margin-top:2px;">Cotizador de Transporte</div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="progress" id="progressBar">
+    <div class="progress-bar" id="p1"></div>
+    <div class="progress-bar" id="p2"></div>
+    <div class="progress-bar" id="p3"></div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step active" id="step1">
+    <div class="step-title">¿Quién hace el servicio?</div>
+    <div class="step-sub">Conductor y cliente del transporte</div>
+    <div class="card">
+      <label class="field-label">CONDUCTOR</label>
+      <div class="grid-2" id="conductorGrid"></div>
+      <input type="text" id="conductorCustom" placeholder="Nombre del conductor" style="display:none;"/>
+      <label class="field-label">CLIENTE</label>
+      <div class="grid-2" id="clienteGrid"></div>
+      <input type="text" id="clienteCustom" placeholder="Nombre del cliente" style="display:none;"/>
+    </div>
+    <button class="btn-primary" id="btn1" onclick="goStep(2)" disabled>Continuar →</button>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step" id="step2">
+    <div class="step-title">¿Cuál es la ruta?</div>
+    <div class="step-sub">Busca los lugares por nombre o dirección</div>
+    <div class="card">
+      <label class="field-label">PUNTO DE RECOGIDA</label>
+      <div class="search-wrapper" id="origenWrapper">
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="origenInput" placeholder="🔍 Buscar origen..." autocomplete="off" style="margin-bottom:0;flex:1;"/>
+          <button onclick="usarUbicacion()" style="padding:0 14px;border-radius:10px;background:#f5a62320;border:1.5px solid #f5a62350;color:#f5a623;font-size:18px;cursor:pointer;flex-shrink:0;">📍</button>
+        </div>
+        <div class="suggestions" id="origenSuggestions" style="display:none;"></div>
+      </div>
+      <div id="origenSelected" style="display:none;" class="place-selected">
+        <span style="font-size:18px;">📍</span>
+        <span class="place-selected-text" id="origenSelectedText"></span>
+        <span class="place-selected-change" onclick="clearPlace('origen')">✕</span>
+      </div>
+      <div id="origenNotaWrapper" style="display:none;">
+        <label class="field-label">📝 DETALLE DEL LUGAR DE PARTIDA</label>
+        <input type="text" id="origenNota" placeholder="Ej: Portería del edificio, bodega 3, local 102..." style="margin-bottom:4px;"/>
+      </div>
+      <label class="field-label">PUNTO DE ENTREGA</label>
+      <div class="search-wrapper" id="destinoWrapper">
+        <input type="text" id="destinoInput" placeholder="🔍 Buscar destino..." autocomplete="off"/>
+        <div class="suggestions" id="destinoSuggestions" style="display:none;"></div>
+      </div>
+      <div id="destinoSelected" style="display:none;" class="place-selected">
+        <span style="font-size:18px;">🏁</span>
+        <span class="place-selected-text" id="destinoSelectedText"></span>
+        <span class="place-selected-change" onclick="clearPlace('destino')">✕</span>
+      </div>
+    </div>
+    <div id="loadingDist" class="loading" style="display:none;">
+      <div class="spinner"></div>
+      <span style="font-size:13px;color:#888;">Calculando distancia...</span>
+    </div>
+    <div id="distanceCard" style="display:none;" class="distance-card">
+      <div>
+        <div class="dist-label">📍 Distancia (Google Maps)</div>
+        <div class="dist-km" id="distKm">—</div>
+        <div class="dist-time" id="distTime"></div>
+      </div>
+      <div>
+        <div class="tarifa-label">Tarifa base</div>
+        <div class="tarifa-val" id="tarifaBase">—</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="toggle-row">
+        <div>
+          <div style="font-size:14px;font-weight:600;">¿Ida y vuelta?</div>
+          <div style="font-size:11px;color:#888;margin-top:2px;">El vehículo regresa con carga</div>
+        </div>
+        <button class="toggle" id="toggleIV" onclick="toggleIdaVuelta()"><div class="toggle-knob"></div></button>
+      </div>
+      <div id="regresoOpts" style="display:none;">
+        <div style="font-size:12px;color:#888;margin-top:12px;margin-bottom:8px;">¿El regreso trae mercancía o carga?</div>
+        <div class="regreso-opts">
+          <button class="regreso-btn" id="rSi" onclick="setRegreso(true)">✓ Sí — 40% desc.</button>
+          <button class="regreso-btn" id="rNo" onclick="setRegreso(false)">✗ No — tarifa doble</button>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="goStep(1)">← Atrás</button>
+      <button class="btn-primary" id="btn2" onclick="goStep(3)" disabled style="flex:1;">Continuar →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step" id="step3">
+    <div class="step-title">¿Qué se transporta?</div>
+    <div class="step-sub">Tipo de carga y recargos adicionales</div>
+    <div class="card">
+      <label class="field-label">TIPO DE CARGA</label>
+      <div class="grid-2" id="cargaGrid"></div>
+      <label class="field-label">RECARGO ADICIONAL ($)</label>
+      <input type="number" id="recargoManual" placeholder="Ej: 20000"/>
+      <label class="field-label">NOTA DEL RECARGO</label>
+      <input type="text" id="notaRecargo" placeholder="Ej: Carga en 3er piso sin ascensor"/>
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="goStep(2)">← Atrás</button>
+      <button class="btn-primary" id="btn3" onclick="calcular()" disabled style="flex:1;">Calcular tarifa</button>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="step" id="step4">
+    <div class="result-total">
+      <div class="result-label">TARIFA CALCULADA</div>
+      <div class="result-amount" id="resultAmount">$0</div>
+      <div class="result-type" id="resultType"></div>
+    </div>
+    <div class="card">
+      <div style="font-size:12px;color:#888;margin-bottom:14px;font-weight:600;letter-spacing:.5px;">RESUMEN DEL SERVICIO</div>
+      <div id="summaryRows"></div>
+      <div id="priceRows"></div>
+      <div class="price-total-row">
+        <span class="price-total-key">TOTAL</span>
+        <span class="price-total-val" id="priceTotalVal">$0</span>
+      </div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid #2a2f3e;">
+        <label class="field-label">✏️ AJUSTAR VALOR FINAL (opcional)</label>
+        <input type="number" id="totalAjustado" placeholder="Escribe el valor si quieres cambiarlo..." oninput="ajustarTotal()"/>
+        <div style="font-size:11px;color:#888;margin-top:-8px;margin-bottom:12px;">Deja en blanco para usar la tarifa calculada</div>
+        <label class="field-label">📝 OBSERVACIONES</label>
+        <input type="text" id="observaciones" placeholder="Ej: Pagó en efectivo, servicio urgente..."/>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="guardar()" style="margin-bottom:0;">✓ Guardar y abrir Google Maps</button>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="hist-section" id="historialSection" style="display:none;">
+    <div class="hist-header">
+      <div class="hist-title">SERVICIOS REGISTRADOS</div>
+      <div class="hist-total" id="histTotal">$0</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span id="syncStatus" style="font-size:11px;color:#888;"></span>
+      <button onclick="loadFromSheets()" style="padding:6px 14px;border-radius:8px;background:#1e1a0e;border:1px solid #f5a62340;color:#f5a623;font-size:12px;cursor:pointer;font-weight:600;">🔄 Sincronizar</button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card">
+      <label class="field-label">FILTRAR POR CLIENTE</label>
+      <select id="filtroCliente" onchange="updateHistorial()">
+        <option value="">Todos los clientes</option>
+      </select>
+      <label class="field-label">FECHA DESDE</label>
+      <input type="date" id="filtroDesde" onchange="updateHistorial()"/>
+      <label class="field-label">FECHA HASTA</label>
+      <input type="date" id="filtroHasta" onchange="updateHistorial()"/>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="export-btn btn-excel" onclick="exportarExcel()">📊 Exportar Excel</button>
+        <button class="export-btn btn-pdf" onclick="exportarPDF()">📄 Exportar PDF</button>
+      </div>
+    </div>
+
+    <div id="resumenFiltro" style="display:none;" class="resumen-card">
+      <div style="font-size:12px;color:#888;margin-bottom:4px;">TOTAL DEL PERÍODO</div>
+      <div id="resumenTotal" style="font-size:22px;font-weight:800;color:#f5a623;"></div>
+      <div id="resumenCount" style="font-size:11px;color:#888;margin-top:2px;"></div>
+    </div>
+
+    <div id="histItems"></div>
+  </div>
+</div>
+
+<!-- Modal editar -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-box">
+    <div style="font-size:16px;font-weight:700;margin-bottom:16px;">✏️ Editar servicio</div>
+    <label class="field-label">CLIENTE</label><input type="text" id="editCliente"/>
+    <label class="field-label">CONDUCTOR</label><input type="text" id="editConductor"/>
+    <label class="field-label">ORIGEN</label><input type="text" id="editOrigen"/>
+    <label class="field-label">DESTINO</label><input type="text" id="editDestino"/>
+    <label class="field-label">VALOR TOTAL ($)</label><input type="number" id="editTotal"/>
+    <label class="field-label">OBSERVACIONES</label><input type="text" id="editObs" style="margin-bottom:20px;"/>
+    <div style="display:flex;gap:10px;">
+      <button onclick="cerrarEdit()" style="flex:1;padding:12px;border-radius:10px;background:#2a2f3e;color:#aaa;border:none;cursor:pointer;font-weight:600;">Cancelar</button>
+      <button onclick="guardarEdicion()" style="flex:1;padding:12px;border-radius:10px;background:#f5a623;color:#0f1117;border:none;cursor:pointer;font-weight:700;">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCtfDqzL5-JuzApbQVBkWjGsvgEMsSqLTc&libraries=places" async defer onload="initMaps()"></script>
+<script>
+const GMAPS_KEY = 'AIzaSyCtfDqzL5-JuzApbQVBkWjGsvgEMsSqLTc';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwG_f8wcozazYshorehYtUZHKiq0CYJVUTF35kppava2ksUvxrqov3vsu45Sc2rBsMg/exec';
+const TARIFAS = [{min:0,max:5,precio:20000},{min:5,max:10,precio:40000},{min:10,max:15,precio:60000},{min:15,max:20,precio:80000},{min:20,max:25,precio:100000},{min:25,max:35,precio:140000},{min:35,max:9999,precio:160000}];
+const CONDUCTORES = ['Andrés','Paola','Otro'];
+const CLIENTES = ['Specialized Av. Boyacá','14/8000miles','Mobok / Bazar Chía','Pidiendo Pista','Gildardo','José (Pinturas)','James (Suspensiones)','Andrés Benavides','Otro'];
+const CARGAS = [{id:'bici1',label:'1 bicicleta',recargo:0},{id:'bici2',label:'2 bicicletas',recargo:0},{id:'bici3',label:'3+ bicicletas',recargo:15000},{id:'cajas',label:'Cajas / mercancía liviana',recargo:20000},{id:'pesado',label:'Carga pesada / simuladores',recargo:35000},{id:'mixto',label:'Mixto (bicis + mercancía)',recargo:25000}];
+
+let state = {conductor:'',conductorCustom:'',cliente:'',clienteCustom:'',origen:null,destino:null,km:null,duracion:null,carga:null,recargoCarga:0,idaVuelta:false,cargaRegreso:false};
+let historial = JSON.parse(localStorage.getItem('legado_historial') || '[]');
+let editIndex = null;
+let mapsUrl = null;
+
+function formatCOP(v){return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(v);}
+function getTarifa(km){for(const t of TARIFAS)if(km>=t.min&&km<t.max)return t.precio;return TARIFAS[TARIFAS.length-1].precio;}
+function saveHistorial(){
+  localStorage.setItem('legado_historial',JSON.stringify(historial));
+}
+
+function saveToSheets(servicio){
+  fetch(SCRIPT_URL, {
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(servicio)
+  }).catch(err=>console.log('Sheets error:',err));
+}
+
+function parseSheetsRows(rows){
+  if(!rows || rows.length <= 1) return [];
+  return rows.slice(1).filter(r=>r[0]&&r[3]).map(r=>{
+    const fechaStr = String(r[0]);
+    let fechaISO = '';
+    const parts = fechaStr.split('/');
+    if(parts.length === 3){
+      const d = String(parts[0]).padStart(2,'0');
+      const m = String(parts[1]).padStart(2,'0');
+      const y = String(parts[2]);
+      fechaISO = y+'-'+m+'-'+d;
+    }
+    return {
+      fecha:fechaStr, hora:String(r[1]),
+      conductor:String(r[2]||''), cliente:String(r[3]),
+      origen:String(r[4]||''), destino:String(r[5]||''),
+      km:parseFloat(String(r[6]).replace(',','.'))||0,
+      duracion:String(r[7]||''), carga:String(r[8]||''),
+      label:String(r[9]||'Ida'),
+      total:parseFloat(String(r[10]).replace(',','.'))||0,
+      descuento:parseFloat(String(r[11]).replace(',','.'))||0,
+      observaciones:String(r[12]||''),
+      fechaISO:fechaISO, mapsUrl:''
+    };
+  });
+}
+
+function applyLoadedData(loaded){
+  if(!loaded.length) return;
+  historial = loaded.sort((a,b)=>{
+    if(b.fechaISO !== a.fechaISO) return b.fechaISO.localeCompare(a.fechaISO);
+    return b.hora.localeCompare(a.hora);
+  });
+  saveHistorial();
+  updateHistorial();
+  // Update sync indicator
+  const el = document.getElementById('syncStatus');
+  if(el) el.textContent = '✅ Sincronizado ' + new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+}
+
+function loadFromSheets(){
+  const el = document.getElementById('syncStatus');
+  if(el) el.textContent = '🔄 Sincronizando...';
+
+  // Try fetch GET first
+  fetch(SCRIPT_URL + '?t=' + Date.now(), {
+    method: 'GET',
+    redirect: 'follow'
+  })
+  .then(r => r.json())
+  .then(data => {
+    if(data && data.data) applyLoadedData(parseSheetsRows(data.data));
+  })
+  .catch(() => {
+    // Fallback: try with no-cors won't work for reading, so use iframe trick with JSONP
+    // Try POST as fallback
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify({action:'get'}),
+      redirect: 'follow'
+    })
+    .then(r => r.json())
+    .then(data => {
+      if(data && data.data) applyLoadedData(parseSheetsRows(data.data));
+    })
+    .catch(err => {
+      console.log('Sync error:', err);
+      const el = document.getElementById('syncStatus');
+      if(el) el.textContent = '⚠️ Sin conexión - datos locales';
+    });
+  });
+}
+
+// ── Maps ──────────────────────────────────────────────────────────
+function initMaps(){
+  setupAC('origen');
+  setupAC('destino');
+}
+
+function setupAC(type){
+  const input = document.getElementById(type+'Input');
+  const sugg = document.getElementById(type+'Suggestions');
+  const svc = new google.maps.places.AutocompleteService();
+  let timer;
+  input.addEventListener('input',()=>{
+    clearTimeout(timer);
+    const val = input.value.trim();
+    // Reset state when user starts typing new place
+    if(type==='destino') { state.destino=null; state.km=null; document.getElementById('btn2').disabled=true; document.getElementById('distanceCard').style.display='none'; }
+    if(type==='origen') { state.origen=null; state.km=null; document.getElementById('btn2').disabled=true; document.getElementById('distanceCard').style.display='none'; }
+    if(val.length<2){sugg.style.display='none';return;}
+    timer = setTimeout(()=>{
+      svc.getPlacePredictions({input:val,componentRestrictions:{country:'co'},location:new google.maps.LatLng(4.6709,-74.0721),radius:80000},(preds,status)=>{
+        if(status!==google.maps.places.PlacesServiceStatus.OK||!preds||!preds.length){sugg.style.display='none';return;}
+        sugg.innerHTML='';
+        preds.slice(0,5).forEach(p=>{
+          const div=document.createElement('div');
+          div.className='suggestion-item';
+          div.innerHTML=`<div class="suggestion-main">${p.structured_formatting.main_text}</div><div class="suggestion-secondary">${p.structured_formatting.secondary_text||''}</div>`;
+          const pick=()=>resolvePlace(type,p.place_id,p.structured_formatting.main_text,p.structured_formatting.secondary_text||'');
+          div.addEventListener('mousedown',e=>{e.preventDefault();pick();});
+          div.addEventListener('touchstart',e=>{e.preventDefault();pick();});
+          sugg.appendChild(div);
+        });
+        sugg.style.display='block';
+      });
+    },350);
+  });
+  input.addEventListener('blur',()=>setTimeout(()=>{sugg.style.display='none';},300));
+}
+
+function resolvePlace(type,placeId,main,secondary){
+  document.getElementById(type+'Suggestions').style.display='none';
+  document.getElementById(type+'Input').value=main;
+  
+  // Use PlacesService with exact placeId to get precise coordinates
+  const div=document.createElement('div');
+  const svc=new google.maps.places.PlacesService(div);
+  svc.getDetails({
+    placeId:placeId,
+    fields:['geometry','formatted_address','name']
+  },(place,status)=>{
+    if(status===google.maps.places.PlacesServiceStatus.OK && place && place.geometry){
+      const lat=place.geometry.location.lat();
+      const lng=place.geometry.location.lng();
+      const address=place.formatted_address||place.name;
+      console.log(type+' resolved:', address, lat, lng);
+      setPlace(type,lat,lng,address);
+    } else {
+      // Fallback: geocode by placeId
+      const geocoder=new google.maps.Geocoder();
+      geocoder.geocode({placeId:placeId},(results,gstatus)=>{
+        if(gstatus==='OK'&&results[0]){
+          const lat=results[0].geometry.location.lat();
+          const lng=results[0].geometry.location.lng();
+          const address=results[0].formatted_address;
+          console.log(type+' geocoded:', address, lat, lng);
+          setPlace(type,lat,lng,address);
+        } else {
+          alert('No se pudo obtener la ubicación exacta de este lugar. Intenta buscarlo de nuevo.');
+        }
+      });
+    }
+  });
+}
+
+function setPlace(type,lat,lng,address){
+  state[type]={lat,lng,address};
+  document.getElementById(type+'SelectedText').textContent=address;
+  document.getElementById(type+'Wrapper').style.display='none';
+  document.getElementById(type+'Selected').style.display='flex';
+  if(type==='origen') document.getElementById('origenNotaWrapper').style.display='block';
+  if(state.origen&&state.destino) calcDist();
+}
+
+function clearPlace(type){
+  state[type]=null; state.km=null; state.duracion=null;
+  document.getElementById(type+'Input').value='';
+  document.getElementById(type+'Selected').style.display='none';
+  document.getElementById(type+'Wrapper').style.display='block';
+  document.getElementById('distanceCard').style.display='none';
+  document.getElementById('btn2').disabled=true;
+  if(type==='origen'){
+    document.getElementById('origenNotaWrapper').style.display='none';
+    document.getElementById('origenNota').value='';
+  }
+}
+
+function usarUbicacion(){
+  if(!navigator.geolocation){alert('GPS no disponible');return;}
+  document.getElementById('origenInput').value='📍 Obteniendo ubicación...';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const lat=pos.coords.latitude,lng=pos.coords.longitude;
+    const geocoder=new google.maps.Geocoder();
+    geocoder.geocode({location:{lat,lng}},(r,s)=>{
+      let addr;
+      if(s==='OK'&&r&&r.length>0){
+        // Try to get a street-level address
+        const street=r.find(x=>x.types.includes('street_address')||x.types.includes('premise')||x.types.includes('route'));
+        addr=(street||r[0]).formatted_address;
+      } else {
+        addr='Ubicación actual - Bogotá';
+      }
+      setPlace('origen',lat,lng,addr);
+    });
+  },()=>{document.getElementById('origenInput').value='';alert('No se pudo obtener ubicación. Activa el GPS.');});
+}
+
+function calcDist(){
+  document.getElementById('loadingDist').style.display='flex';
+  document.getElementById('distanceCard').style.display='none';
+  document.getElementById('btn2').disabled=true;
+
+  // Verify we have valid coordinates
+  if(!state.origen||!state.destino||!state.origen.lat||!state.destino.lat){
+    document.getElementById('loadingDist').style.display='none';
+    return;
+  }
+
+  const orig = new google.maps.LatLng(state.origen.lat, state.origen.lng);
+  const dest = new google.maps.LatLng(state.destino.lat, state.destino.lng);
+
+  const svc = new google.maps.DistanceMatrixService();
+  svc.getDistanceMatrix({
+    origins:[orig],
+    destinations:[dest],
+    travelMode:google.maps.TravelMode.DRIVING,
+    unitSystem:google.maps.UnitSystem.METRIC,
+    avoidHighways:false,
+    avoidTolls:false
+  },(resp,status)=>{
+    document.getElementById('loadingDist').style.display='none';
+    let km, dur;
+
+    if(status==='OK' && resp.rows && resp.rows[0] && resp.rows[0].elements[0] && resp.rows[0].elements[0].status==='OK'){
+      const el = resp.rows[0].elements[0];
+      km = Math.round((el.distance.value/1000)*10)/10;
+      dur = el.duration.text;
+    } else {
+      // Fallback: Directions API
+      const dirSvc = new google.maps.DirectionsService();
+      dirSvc.route({
+        origin: orig,
+        destination: dest,
+        travelMode: google.maps.TravelMode.DRIVING
+      }, (result, dStatus) => {
+        if(dStatus === 'OK' && result.routes[0]) {
+          const leg = result.routes[0].legs[0];
+          km = Math.round((leg.distance.value/1000)*10)/10;
+          dur = leg.duration.text;
+        } else {
+          // Last resort: straight line * road factor
+          const R=6371;
+          const dLat=(state.destino.lat-state.origen.lat)*Math.PI/180;
+          const dLon=(state.destino.lng-state.origen.lng)*Math.PI/180;
+          const a=Math.sin(dLat/2)**2+Math.cos(state.origen.lat*Math.PI/180)*Math.cos(state.destino.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+          const straight = R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+          km = Math.max(1, Math.round(straight*1.4*10)/10);
+          dur = '~'+Math.round(km/20*60)+' min';
+        }
+        finalizeDist(km, dur);
+      });
+      return;
+    }
+    finalizeDist(km, dur);
+  });
+}
+
+function finalizeDist(km, dur){
+  if(!km || km <= 0) km = 1;
+  state.km=km; state.duracion=dur;
+  document.getElementById('distKm').textContent=km+' km';
+  document.getElementById('distTime').textContent='⏱ '+dur+' en carro';
+  document.getElementById('tarifaBase').textContent=formatCOP(getTarifa(km));
+  document.getElementById('distanceCard').style.display='flex';
+  mapsUrl=`https://www.google.com/maps/dir/?api=1&origin=${state.origen.lat},${state.origen.lng}&destination=${state.destino.lat},${state.destino.lng}&travelmode=driving`;
+  const btn2=document.getElementById('btn2');
+  btn2.disabled=false; btn2.style.background='#f5a623'; btn2.style.color='#0f1117';
+}
+
+// ── UI Init ───────────────────────────────────────────────────────
+function makeChips(containerId,items,stateKey,customId,checkFn){
+  const grid=document.getElementById(containerId);
+  items.forEach(c=>{
+    const btn=document.createElement('button');
+    btn.className='chip'; btn.textContent=c;
+    btn.onclick=()=>{
+      grid.querySelectorAll('.chip').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      state[stateKey]=c;
+      if(customId) document.getElementById(customId).style.display=c==='Otro'?'block':'none';
+      checkFn();
+    };
+    grid.appendChild(btn);
+  });
+  if(customId) document.getElementById(customId).addEventListener('input',e=>{state[stateKey+'Custom']=e.target.value.trim();checkFn();});
+}
+
+function checkStep1(){
+  const condOk=state.conductor&&(state.conductor!=='Otro'||state.conductorCustom);
+  const clienteOk=state.cliente&&(state.cliente!=='Otro'||state.clienteCustom);
+  document.getElementById('btn1').disabled=!(condOk&&clienteOk);
+}
+
+function initUI(){
+  makeChips('conductorGrid',CONDUCTORES,'conductor','conductorCustom',checkStep1);
+  makeChips('clienteGrid',CLIENTES,'cliente','clienteCustom',checkStep1);
+  const kg=document.getElementById('cargaGrid');
+  CARGAS.forEach(c=>{
+    const btn=document.createElement('button');
+    btn.className='chip';
+    btn.innerHTML=`<div>${c.label}</div>${c.recargo>0?`<div style="font-size:10px;color:#888;margin-top:3px;">+${formatCOP(c.recargo)}</div>`:''}`;
+    btn.onclick=()=>{
+      kg.querySelectorAll('.chip').forEach(b=>b.classList.remove('selected'));
+      btn.classList.add('selected');
+      state.carga=c.id; state.recargoCarga=c.recargo;
+      document.getElementById('btn3').disabled=false;
+    };
+    kg.appendChild(btn);
+  });
+  updateHistorial();
+}
+
+// ── Steps ─────────────────────────────────────────────────────────
+function goStep(n){
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
+  document.getElementById('step'+n).classList.add('active');
+  document.getElementById('progressBar').style.display=n===4?'none':'flex';
+  for(let i=1;i<=3;i++) document.getElementById('p'+i).classList.toggle('active',i<n);
+  window.scrollTo(0,0);
+}
+
+function toggleIdaVuelta(){
+  state.idaVuelta=!state.idaVuelta;
+  document.getElementById('toggleIV').classList.toggle('on',state.idaVuelta);
+  document.getElementById('regresoOpts').style.display=state.idaVuelta?'block':'none';
+  state.cargaRegreso=false;
+  document.getElementById('rSi').classList.remove('selected');
+  document.getElementById('rNo').classList.remove('selected');
+}
+
+function setRegreso(val){
+  state.cargaRegreso=val;
+  document.getElementById('rSi').classList.toggle('selected',val);
+  document.getElementById('rNo').classList.toggle('selected',!val);
+}
+
+function ajustarTotal(){
+  const val=parseFloat(document.getElementById('totalAjustado').value);
+  const display=!isNaN(val)&&val>0?formatCOP(val):formatCOP(window._pendingResult?.total||0);
+  document.getElementById('resultAmount').textContent=display;
+  document.getElementById('priceTotalVal').textContent=display;
+}
+
+// ── Calcular ──────────────────────────────────────────────────────
+function calcular(){
+  const km=state.km,base=getTarifa(km);
+  const recargoCarga=state.recargoCarga||0;
+  const recargoManual=parseFloat(document.getElementById('recargoManual').value)||0;
+  const nota=document.getElementById('notaRecargo').value;
+  const subtotal=base+recargoCarga+recargoManual;
+  let total=subtotal,descuento=0,label='Ida';
+  if(state.idaVuelta&&state.cargaRegreso){const d=subtotal*2;descuento=d*.4;total=d-descuento;label='Ida y vuelta (40% desc.)';}
+  else if(state.idaVuelta){total=subtotal*2;label='Ida y vuelta';}
+
+  const conductor=state.conductor==='Otro'?state.conductorCustom:state.conductor;
+  const cliente=state.cliente==='Otro'?state.clienteCustom:state.cliente;
+  const cargaLabel=CARGAS.find(c=>c.id===state.carga)?.label||'';
+  const origenNota=document.getElementById('origenNota').value.trim();
+  const origenCompleto=origenNota?state.origen.address+' — '+origenNota:state.origen.address;
+  const now=new Date();
+  const fecha=now.toLocaleDateString('es-CO');
+  const fechaISO=now.toISOString().split('T')[0];
+  const hora=now.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+
+  document.getElementById('resultAmount').textContent=formatCOP(total);
+  document.getElementById('resultType').textContent=label;
+  document.getElementById('priceTotalVal').textContent=formatCOP(total);
+
+  document.getElementById('summaryRows').innerHTML=[
+    {k:'Conductor',v:conductor},{k:'Cliente',v:cliente},
+    {k:'Fecha',v:`${fecha} ${hora}`},{k:'Origen',v:origenCompleto},
+    {k:'Destino',v:state.destino.address},{k:'Distancia',v:`${km} km${state.duracion?' · '+state.duracion:''}`},{k:'Carga',v:cargaLabel}
+  ].map(r=>`<div class="summary-row"><span class="summary-key">${r.k}</span><span class="summary-val">${r.v}</span></div>`).join('');
+
+  let ph=`<div class="price-row"><span class="price-key">Tarifa base</span><span class="price-val">${formatCOP(base)}</span></div>`;
+  if(recargoCarga>0) ph+=`<div class="price-row"><span class="price-key">Recargo por carga</span><span class="price-val" style="color:#f5a623">+${formatCOP(recargoCarga)}</span></div>`;
+  if(recargoManual>0) ph+=`<div class="price-row"><span class="price-key">${nota||'Recargo adicional'}</span><span class="price-val" style="color:#f5a623">+${formatCOP(recargoManual)}</span></div>`;
+  if(descuento>0) ph+=`<div class="price-row"><span class="price-key" style="color:#4caf50">Descuento 40%</span><span class="price-val" style="color:#4caf50">-${formatCOP(descuento)}</span></div>`;
+  document.getElementById('priceRows').innerHTML=ph;
+
+  window._pendingResult={conductor,cliente,origen:origenCompleto,destino:state.destino.address,km,duracion:state.duracion,carga:cargaLabel,base,recargoCarga,recargoManual,nota,subtotal,descuento,total,label,fecha,fechaISO,hora,mapsUrl};
+  goStep(4);
+}
+
+function guardar(){
+  if(!window._pendingResult) return;
+  const ajustado=parseFloat(document.getElementById('totalAjustado').value);
+  if(!isNaN(ajustado)&&ajustado>0) window._pendingResult.total=ajustado;
+  window._pendingResult.observaciones=document.getElementById('observaciones').value;
+  historial.unshift(window._pendingResult);
+  saveHistorial();
+  saveToSheets(window._pendingResult);
+
+  // Open Google Maps
+  if(window._pendingResult.mapsUrl) window.open(window._pendingResult.mapsUrl,'_blank');
+
+  nuevo();
+  updateHistorial();
+}
+
+function nuevo(){
+  state={conductor:'',conductorCustom:'',cliente:'',clienteCustom:'',origen:null,destino:null,km:null,duracion:null,carga:null,recargoCarga:0,idaVuelta:false,cargaRegreso:false};
+  mapsUrl=null;
+  document.querySelectorAll('.chip').forEach(b=>b.classList.remove('selected'));
+  ['conductorCustom','clienteCustom'].forEach(id=>{const el=document.getElementById(id);el.value='';el.style.display='none';});
+  document.getElementById('origenNota').value='';
+  document.getElementById('origenNotaWrapper').style.display='none';
+  clearPlace('origen'); clearPlace('destino');
+  document.getElementById('recargoManual').value='';
+  document.getElementById('notaRecargo').value='';
+  document.getElementById('totalAjustado').value='';
+  document.getElementById('observaciones').value='';
+  document.getElementById('toggleIV').classList.remove('on');
+  document.getElementById('regresoOpts').style.display='none';
+  document.getElementById('btn1').disabled=true;
+  document.getElementById('btn3').disabled=true;
+  window._pendingResult=null;
+  goStep(1);
+}
+
+// ── Historial ─────────────────────────────────────────────────────
+function getFiltered(){
+  const cli=document.getElementById('filtroCliente').value;
+  const desde=document.getElementById('filtroDesde').value;
+  const hasta=document.getElementById('filtroHasta').value;
+  return historial.filter(s=>{
+    if(cli&&s.cliente!==cli) return false;
+    if(desde&&s.fechaISO<desde) return false;
+    if(hasta&&s.fechaISO>hasta) return false;
+    return true;
+  });
+}
+
+function updateHistorial(){
+  if(!historial.length){document.getElementById('historialSection').style.display='none';return;}
+  document.getElementById('historialSection').style.display='block';
+
+  const filtro=document.getElementById('filtroCliente');
+  const cur=filtro.value;
+  const clientes=[...new Set(historial.map(s=>s.cliente))];
+  filtro.innerHTML='<option value="">Todos los clientes</option>'+clientes.map(c=>`<option value="${c}"${cur===c?' selected':''}>${c}</option>`).join('');
+
+  const filtered=getFiltered();
+  const totalAll=historial.reduce((a,s)=>a+s.total,0);
+  const totalFilt=filtered.reduce((a,s)=>a+s.total,0);
+  document.getElementById('histTotal').textContent=formatCOP(totalAll);
+
+  const hasFilter=cur||document.getElementById('filtroDesde').value||document.getElementById('filtroHasta').value;
+  if(hasFilter){
+    document.getElementById('resumenFiltro').style.display='block';
+    document.getElementById('resumenTotal').textContent=formatCOP(totalFilt);
+    document.getElementById('resumenCount').textContent=filtered.length+' servicio(s) encontrados';
+  } else {
+    document.getElementById('resumenFiltro').style.display='none';
+  }
+
+  document.getElementById('histItems').innerHTML=filtered.map((s,fi)=>{
+    const ri=historial.indexOf(s);
+    return `<div class="hist-item">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div style="flex:1;min-width:0;">
+          <div class="hist-cliente">${s.cliente}</div>
+          <div class="conductor-badge">👤 ${s.conductor}</div>
+          <div class="hist-detail">${s.fecha} ${s.hora}</div>
+          <div class="hist-detail">${s.origen} → ${s.destino}</div>
+          <div class="hist-detail">${s.km} km · ${s.carga} · ${s.label}</div>
+          ${s.observaciones?`<div class="hist-detail" style="color:#f5a62388;">📝 ${s.observaciones}</div>`:''}
+        </div>
+        <div class="hist-valor">${formatCOP(s.total)}</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="abrirEdit(${ri})" style="flex:1;padding:8px;border-radius:8px;background:#1e1a0e;border:1px solid #f5a62340;color:#f5a623;font-size:12px;cursor:pointer;font-weight:600;">✏️ Editar</button>
+        <button onclick="eliminar(${ri})" style="padding:8px 14px;border-radius:8px;background:#2a1a1a;border:1px solid #ff444440;color:#ff6b6b;font-size:12px;cursor:pointer;font-weight:600;">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abrirEdit(i){
+  editIndex=i;
+  const s=historial[i];
+  document.getElementById('editCliente').value=s.cliente;
+  document.getElementById('editConductor').value=s.conductor;
+  document.getElementById('editOrigen').value=s.origen;
+  document.getElementById('editDestino').value=s.destino;
+  document.getElementById('editTotal').value=s.total;
+  document.getElementById('editObs').value=s.observaciones||'';
+  document.getElementById('editModal').classList.add('open');
+}
+
+function cerrarEdit(){document.getElementById('editModal').classList.remove('open');editIndex=null;}
+
+function guardarEdicion(){
+  if(editIndex===null) return;
+  historial[editIndex].cliente=document.getElementById('editCliente').value;
+  historial[editIndex].conductor=document.getElementById('editConductor').value;
+  historial[editIndex].origen=document.getElementById('editOrigen').value;
+  historial[editIndex].destino=document.getElementById('editDestino').value;
+  historial[editIndex].total=parseFloat(document.getElementById('editTotal').value)||historial[editIndex].total;
+  historial[editIndex].observaciones=document.getElementById('editObs').value;
+  saveHistorial();
+  cerrarEdit();
+  updateHistorial();
+}
+
+function eliminar(i){
+  if(confirm('¿Eliminar este servicio?')){
+    const s = historial[i];
+    // Delete from Google Sheets
+    fetch(SCRIPT_URL, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'delete', fecha:s.fecha, hora:s.hora, cliente:s.cliente})
+    }).catch(err=>console.log('Delete sheets error:',err));
+    // Delete from local
+    historial.splice(i,1);
+    saveHistorial();
+    updateHistorial();
+  }
+}
+
+// ── Exportar ──────────────────────────────────────────────────────
+function exportarExcel(){
+  const filtered=getFiltered();
+  if(!filtered.length){alert('No hay servicios para exportar con los filtros actuales.');return;}
+  const cliente=document.getElementById('filtroCliente').value||'Todos';
+  const rows=filtered.map(s=>({
+    'Fecha':s.fecha,'Hora':s.hora,'Cliente':s.cliente,'Conductor':s.conductor,
+    'Origen':s.origen,'Destino':s.destino,'Distancia (km)':s.km,
+    'Carga':s.carga,'Tipo':s.label,'Valor ($)':s.total,'Observaciones':s.observaciones||''
+  }));
+  const total=filtered.reduce((a,s)=>a+s.total,0);
+  rows.push({'Fecha':'','Hora':'','Cliente':'','Conductor':'','Origen':'','Destino':'','Distancia (km)':'','Carga':'','Tipo':'TOTAL','Valor ($)':total,'Observaciones':''});
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:12},{wch:8},{wch:20},{wch:12},{wch:35},{wch:35},{wch:14},{wch:20},{wch:22},{wch:14},{wch:30}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Servicios');
+  XLSX.writeFile(wb,`Legado_Bike_${cliente}_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+function exportarPDF(){
+  const filtered=getFiltered();
+  if(!filtered.length){alert('No hay servicios para exportar.');return;}
+  const cliente=document.getElementById('filtroCliente').value||'Todos los clientes';
+  const desde=document.getElementById('filtroDesde').value||'—';
+  const hasta=document.getElementById('filtroHasta').value||'—';
+  const total=filtered.reduce((a,s)=>a+s.total,0);
+  const filas=filtered.map(s=>`
+    <tr>
+      <td>${s.fecha}</td><td>${s.conductor}</td><td>${s.cliente}</td>
+      <td style="font-size:11px;">${s.origen}</td><td style="font-size:11px;">${s.destino}</td>
+      <td>${s.km} km</td><td>${s.carga}</td><td>${s.label}</td>
+      <td style="font-weight:700;color:#e8820a;">${formatCOP(s.total)}</td>
+    </tr>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Legado Bike - Servicios</title>
+  <style>body{font-family:Arial,sans-serif;padding:30px;color:#222;}h1{color:#e8820a;margin-bottom:4px;}
+  .sub{color:#888;font-size:13px;margin-bottom:20px;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  th{background:#e8820a;color:white;padding:8px;text-align:left;}
+  td{padding:7px 8px;border-bottom:1px solid #eee;}
+  tr:nth-child(even){background:#fafafa;}
+  .total-row{font-weight:700;font-size:14px;text-align:right;margin-top:16px;color:#e8820a;}
+  .footer{margin-top:30px;font-size:11px;color:#aaa;}</style></head>
+  <body><h1>🚲 El Legado Bike</h1>
+  <div class="sub">Cliente: <b>${cliente}</b> | Período: ${desde} al ${hasta} | ${filtered.length} servicio(s)</div>
+  <table><tr><th>Fecha</th><th>Conductor</th><th>Cliente</th><th>Origen</th><th>Destino</th><th>Km</th><th>Carga</th><th>Tipo</th><th>Valor</th></tr>
+  ${filas}</table>
+  <div class="total-row">TOTAL: ${formatCOP(total)}</div>
+  <div class="footer">Generado el ${new Date().toLocaleDateString('es-CO')} — El Legado Bike</div>
+  </body></html>`;
+  const win=window.open('','_blank');
+  win.document.write(html);
+  win.document.close();
+  setTimeout(()=>win.print(),500);
+}
+
+initUI();
+loadFromSheets();
+</script>
+</body>
+</html>
