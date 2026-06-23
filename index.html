@@ -295,7 +295,53 @@
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCtfDqzL5-JuzApbQVBkWjGsvgEMsSqLTc&libraries=places" async defer onload="initMaps()"></script>
 <script>
 const GMAPS_KEY = 'AIzaSyCtfDqzL5-JuzApbQVBkWjGsvgEMsSqLTc';
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlsfm-92YhrQu1PUXibf8Ss5a76tYvCSP6xl-Qhe3go1fbTNxZtk2xRGYbvyrw9MOG/exec';
+const FIREBASE_URL = 'https://legado-12b9f-default-rtdb.firebaseio.com';
+
+function saveHistorial(){
+  localStorage.setItem('legado_historial', JSON.stringify(historial));
+}
+
+function saveToFirebase(servicio){
+  const key = servicio.fechaISO + '_' + servicio.hora.replace(/[^0-9]/g,'') + '_' + servicio.cliente.replace(/[^a-zA-Z0-9]/g,'');
+  fetch(FIREBASE_URL + '/servicios/' + key + '.json', {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(servicio)
+  }).catch(err => console.log('Firebase save error:', err));
+}
+
+function deleteFromFirebase(servicio){
+  const key = servicio.fechaISO + '_' + servicio.hora.replace(/[^0-9]/g,'') + '_' + servicio.cliente.replace(/[^a-zA-Z0-9]/g,'');
+  fetch(FIREBASE_URL + '/servicios/' + key + '.json', {
+    method: 'DELETE'
+  }).catch(err => console.log('Firebase delete error:', err));
+}
+
+function loadFromFirebase(){
+  const el = document.getElementById('syncStatus');
+  if(el) el.textContent = '🔄 Sincronizando...';
+  
+  fetch(FIREBASE_URL + '/servicios.json')
+  .then(r => r.json())
+  .then(data => {
+    if(data) {
+      const loaded = Object.values(data).filter(s => s && s.cliente && s.fecha);
+      historial = loaded.sort((a,b) => {
+        if(b.fechaISO !== a.fechaISO) return b.fechaISO.localeCompare(a.fechaISO);
+        return b.hora.localeCompare(a.hora);
+      });
+      saveHistorial();
+      updateHistorial();
+      if(el) el.textContent = '✅ Sincronizado ' + new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    } else {
+      if(el) el.textContent = '✅ Sin servicios aún';
+    }
+  })
+  .catch(err => {
+    console.log('Firebase load error:', err);
+    if(el) el.textContent = '⚠️ Sin conexión - datos locales';
+  });
+}
 const TARIFAS = [{min:0,max:5,precio:20000},{min:5,max:10,precio:40000},{min:10,max:15,precio:60000},{min:15,max:20,precio:80000},{min:20,max:25,precio:100000},{min:25,max:35,precio:140000},{min:35,max:9999,precio:160000}];
 const CONDUCTORES = ['Andrés','Paola','Otro'];
 const CLIENTES = ['Specialized Av. Boyacá','14/8000miles','Mobok / Bazar Chía','Pidiendo Pista','Gildardo','José (Pinturas)','James (Suspensiones)','Andrés Benavides','Otro'];
@@ -308,98 +354,7 @@ let mapsUrl = null;
 
 function formatCOP(v){return new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',minimumFractionDigits:0}).format(v);}
 function getTarifa(km){for(const t of TARIFAS)if(km>=t.min&&km<t.max)return t.precio;return TARIFAS[TARIFAS.length-1].precio;}
-function saveHistorial(){
-  localStorage.setItem('legado_historial',JSON.stringify(historial));
-}
-
-function saveToSheets(servicio){
-  fetch(SCRIPT_URL, {
-    method:'POST',
-    mode:'no-cors',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(servicio)
-  }).catch(err=>console.log('Sheets error:',err));
-}
-
-function parseSheetsRows(rows){
-  if(!rows || rows.length <= 1) return [];
-  return rows.slice(1).filter(r=>r[0]&&r[3]).map(r=>{
-    const fechaStr = String(r[0]);
-    let fechaISO = '';
-    const parts = fechaStr.split('/');
-    if(parts.length === 3){
-      const d = String(parts[0]).padStart(2,'0');
-      const m = String(parts[1]).padStart(2,'0');
-      const y = String(parts[2]);
-      fechaISO = y+'-'+m+'-'+d;
-    }
-    return {
-      fecha:fechaStr, hora:String(r[1]),
-      conductor:String(r[2]||''), cliente:String(r[3]),
-      origen:String(r[4]||''), destino:String(r[5]||''),
-      km:parseFloat(String(r[6]).replace(',','.'))||0,
-      duracion:String(r[7]||''), carga:String(r[8]||''),
-      label:String(r[9]||'Ida'),
-      total:parseFloat(String(r[10]).replace(',','.'))||0,
-      descuento:parseFloat(String(r[11]).replace(',','.'))||0,
-      observaciones:String(r[12]||''),
-      fechaISO:fechaISO, mapsUrl:''
-    };
-  });
-}
-
-function applyLoadedData(loaded){
-  if(!loaded.length) return;
-  historial = loaded.sort((a,b)=>{
-    if(b.fechaISO !== a.fechaISO) return b.fechaISO.localeCompare(a.fechaISO);
-    return b.hora.localeCompare(a.hora);
-  });
-  saveHistorial();
-  updateHistorial();
-  // Update sync indicator
-  const el = document.getElementById('syncStatus');
-  if(el) el.textContent = '✅ Sincronizado ' + new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
-}
-
-function loadFromSheets(){
-  const el = document.getElementById('syncStatus');
-  if(el) el.textContent = '🔄 Sincronizando...';
-
-  // Try fetch GET first
-  fetch(SCRIPT_URL + '?t=' + Date.now(), {
-    method: 'GET',
-    redirect: 'follow'
-  })
-  .then(r => r.json())
-  .then(data => {
-    if(data && data.data) applyLoadedData(parseSheetsRows(data.data));
-  })
-  .catch(() => {
-    // Fallback: try with no-cors won't work for reading, so use iframe trick with JSONP
-    // Try POST as fallback
-    fetch(SCRIPT_URL, {
-      method: 'POST',
-      headers: {'Content-Type': 'text/plain;charset=utf-8'},
-      body: JSON.stringify({action:'get'}),
-      redirect: 'follow'
-    })
-    .then(r => r.json())
-    .then(data => {
-      if(data && data.data) applyLoadedData(parseSheetsRows(data.data));
-    })
-    .catch(err => {
-      console.log('Sync error:', err);
-      const el = document.getElementById('syncStatus');
-      if(el) el.textContent = '⚠️ Sin conexión - datos locales';
-    });
-  });
-}
-
-// ── Maps ──────────────────────────────────────────────────────────
-function initMaps(){
-  setupAC('origen');
-  setupAC('destino');
-}
+// Firebase functions above replace these
 
 function setupAC(type){
   const input = document.getElementById(type+'Input');
@@ -704,7 +659,7 @@ function guardar(){
   window._pendingResult.observaciones=document.getElementById('observaciones').value;
   historial.unshift(window._pendingResult);
   saveHistorial();
-  saveToSheets(window._pendingResult);
+  saveToFirebase(window._pendingResult);
 
   // Open Google Maps
   if(window._pendingResult.mapsUrl) window.open(window._pendingResult.mapsUrl,'_blank');
@@ -821,14 +776,7 @@ function guardarEdicion(){
 function eliminar(i){
   if(confirm('¿Eliminar este servicio?')){
     const s = historial[i];
-    // Delete from Google Sheets
-    fetch(SCRIPT_URL, {
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'delete', fecha:s.fecha, hora:s.hora, cliente:s.cliente})
-    }).catch(err=>console.log('Delete sheets error:',err));
-    // Delete from local
+    deleteFromFirebase(s);
     historial.splice(i,1);
     saveHistorial();
     updateHistorial();
@@ -891,7 +839,7 @@ function exportarPDF(){
 }
 
 initUI();
-loadFromSheets();
+loadFromFirebase();
 </script>
 </body>
 </html>
